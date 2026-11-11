@@ -1,0 +1,71 @@
+/* 仅适配 PageIndex 容器、动态名称和弹框入口，动效样式在 scene.css。 */
+.neural-stage { position: absolute; inset: 0; min-height: 0; isolation: isolate; overflow: hidden; background: transparent; }
+.neural-scene, .neural-scene .home-stage { position: relative; height: 100%; width: 100%; overflow: hidden; }
+.neural-scene button { cursor: pointer; font: inherit; color: inherit; }
+.neural-scene :focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; }
+.neural-scene .jelly-label { max-width: 180px; }
+.neural-scene .jl-name { max-width: 150px; overflow: hidden; text-overflow: ellipsis; }
+.neural-scene .jl-sub { color: var(--muted); margin-top: 3px; }
+.neural-scene .scene-legend { position: absolute; inset: auto var(--scene-edge,40px) 24px; display: flex; flex-wrap: wrap; gap: 18px; color: var(--muted); font-size: 9px; pointer-events: none; }
+.neural-scene .scene-legend span:last-child { margin-left: auto; }
+.neural-scene .scene-empty { position: absolute; left: 60%; top: 52%; width: 30%; color: var(--muted); font-size: 11px; display: grid; gap: 10px; pointer-events: none; }
+.neural-scene .scene-empty strong { color: var(--secondary); font-weight: 500; }
+@media(max-width:800px) {
+ .neural-scene .jelly-label { min-width: 0; padding: 6px 9px; }
+ .neural-scene .jl-count { font-size: 16px; }
+ .neural-scene .jl-sub { display: none; }
+ .neural-scene .jl-name { max-width: 130px; font-size: 11px; }
+ .neural-scene .scene-legend { inset-inline: 15px; gap: 10px; font-size: 8px; }
+ .neural-scene .scene-legend span:last-child { display: none; }
+ .neural-scene .scene-empty { top: 330px; left: 15%; width: 70%; text-align: center; }
+}
+@media(prefers-reduced-motion:reduce) { .neural-scene .orb-halo { animation: none; } }
+
+.scene-pagination { position: absolute; left: calc(var(--document-list-left) + 16px); width: var(--document-width); bottom: 22px; display: flex; align-items: center; justify-content: flex-end; gap: 12px; color: var(--muted); font-size: 10px; z-index: 4; }
+.scene-pagination button { width: 29px; height: 29px; border: 1px solid var(--line); border-radius: 50%; background: #ffffff06; }
+.scene-pagination button:hover { border-color: var(--gold); color: var(--gold); }
+.scene-pagination button:disabled { opacity: .3; cursor: default; }
+@media(max-width:959px) { .scene-pagination { bottom: 20px; font-size: 10px; } }
+
+.scene-pagination ~ .scene-legend span:last-child { display: none; }
+.compact-libraries .neural-scene .jelly-label.side { padding: 7px 10px 8px; }
+.compact-libraries .neural-scene .jelly-label.side .jl-sub { display: none; }
+.compact-libraries .neural-scene .jelly-label.side .jl-name { margin-top: 4px; font-size: 11px; line-height: 1.4; }
+.compact-libraries .neural-scene .jelly-label.side .jl-count { font-size: 18px; }
+.compact-libraries .neural-scene .jelly-label.side .jl-icon { width: 20px; height: 20px; }
+@media(max-width:759px) { .scene-pagination ~ .scene-legend span:nth-child(2) { display: none; } }
+
+/* 在原版水母场景上强化文档节点，保留视频、光丝与脉冲动效。 */
+.neural-scene .fan-item { gap: 12px; height: auto; min-height: 76px; width: calc(var(--document-width) + 18px); }
+.neural-scene .fi-dot { width: 8px; height: 8px; margin-left: -4px; }
+.neural-scene .fi-body {
+  box-sizing: border-box; width: var(--document-width); min-height: 76px; flex: none;
+  display: grid; grid-template-columns: 30px minmax(0,1fr) 15px;
+  grid-template-areas: "file title open" "file meta open"; column-gap: 12px; row-gap: 7px;
+  padding: 12px 14px; border: 1px solid #c6e1d313; border-radius: 13px;
+  background: linear-gradient(110deg,#a5d7c508,#c9dfd103);
+  transition: background .25s, border-color .25s, box-shadow .25s;
+}
+.neural-scene .fi-file { grid-area: file; align-self: center; display: grid; place-items: center; width: 30px; height: 36px; border: 1px solid #b5dacc1c; border-radius: 8px; background: #9bceba09; color: #b2c9be; }
+.neural-scene .fi-title { grid-area: title; max-width: none; align-self: end; font-size: 13px; font-weight: 500; line-height: 1.5; white-space: normal; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.neural-scene .fi-meta { grid-area: meta; align-items: center; gap: 7px; font-size: 9px; color: #909b94; }
+.neural-scene .fi-meta > span { padding: 1px 4px; border-radius: 3px; background: #d6e0d707; }
+.neural-scene .fi-meta > span:last-child { display: inline-flex; align-items: center; gap: 4px; padding: 0; background: transparent; }
+.neural-scene .fi-meta > span:last-child::before { content: ''; width: 3px; height: 3px; border-radius: 50%; background: var(--kc); opacity: .8; }
+.neural-scene .fi-open { grid-area: open; align-self: center; color: #a2b8aa; opacity: .3; transition: opacity .25s, color .25s; }
+.neural-scene .fan-item:hover .fi-body, .neural-scene .fan-item:focus-visible .fi-body { background: linear-gradient(110deg,#a5d7c512,#c9dfd106); border-color: #bde4d444; box-shadow: 0 8px 28px #0002; }
+.neural-scene .fan-item:hover .fi-open, .neural-scene .fan-item:focus-visible .fi-open { opacity: 1; color: var(--gold); }
+.neural-scene .jelly-label.side { min-width: 144px; max-width: 164px; padding: 12px 14px; border-radius: 13px; }
+.neural-scene .jelly-label.side .jl-name { max-width: 134px; font-size: 12px; line-height: 1.6; }
+.neural-scene .jelly-label.side .jl-sub { margin-top: 6px; font-size: 9px; }
+.neural-scene .jl-count small { margin-left: 6px; color: var(--muted); font-size: 9px; font-weight: 400; }
+.neural-scene .scene-legend { font-size: 10px; opacity: .8; }
+.neural-scene .scene-legend > span { display: flex; align-items: center; gap: 7px; }
+.neural-scene .scene-legend > span:not(:last-child)::before { content: ''; width: 12px; height: 1px; background: var(--mint); opacity: .8; }
+.neural-scene .scene-legend > span:nth-child(2)::before { background: var(--gold); }
+@media(max-width:959px) {
+  .neural-scene .jelly-label.side { min-width: 128px; padding: 8px 11px; }
+  .neural-scene .jelly-label.side .jl-name { font-size: 11px; }
+  .neural-scene .fi-body { padding: 10px 12px; }
+  .neural-scene .scene-legend span:last-child { display: none; }
+}

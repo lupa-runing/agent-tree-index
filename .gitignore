@@ -7,3 +7,21 @@ logs/
 .pageindex/
 dist/
 /results/
+
+# 本地明文模型配置，不提交密钥
+models.json
+.models-*.tmp
+
+# 原版星团场景的本地构建依赖
+frontend/node_modules/
+
+# 知识工作室本地配置、任务与向量缓存
+studio-state.json
+/store.json
+/uploads/
+vector-cache/
+page-content-cache/
+model-input-traces/
+
+# 本地 IDE 配置
+/.idea/

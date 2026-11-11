@@ -36,6 +36,8 @@ import re
 # helpers and their asyncio tasks without threading it through every call.
 _llm_backend: contextvars.ContextVar = contextvars.ContextVar(
     "pageindex_llm_backend", default=None)
+_summary_backend: contextvars.ContextVar = contextvars.ContextVar(
+    "pageindex_summary_backend", default=None)
 
 # Same scope: the dict the token usage of every indexing model call is
 # summed into, which LocalAPI returns from submit_document.
@@ -61,6 +63,8 @@ def _add_usage(response) -> None:
     usage, counted = _llm_usage.get(), getattr(response, "usage", None)
     if usage is None or counted is None:
         return
+    if 'reported' in usage:
+        usage['reported'] = True
     prompt = getattr(counted, "prompt_tokens", 0) or 0
     completion = getattr(counted, "completion_tokens", 0) or 0
     details = getattr(counted, "prompt_tokens_details", None)
@@ -348,29 +352,35 @@ def _claude_none_kwargs(model, kwargs):
 
 
 def llm_completion(model, prompt, chat_history=None, return_finish_reason=False):
+    from .model_input import observed_model_call
+    # 本地多模型配置先确定实际模型，避免把含斜杠的 OpenAI-compatible 标识误当 provider。
+    backend = _llm_backend.get()
+    model = (backend or {}).get("model", model)
     from .integrations.claude_agent_sdk import claude_code_complete, is_claude_code
     from .retry import INDEX_MAX_DELAY, INDEX_RETRIES, delay, should_retry
     if is_claude_code(model):
         if chat_history or return_finish_reason:
             raise ValueError("claude-code/ models index in flash mode only; "
                              "standard mode needs an API model.")
-        return run_off_loop(asyncio.run, claude_code_complete(model, prompt))
+        with observed_model_call({'model': model, 'messages': [{'role': 'user', 'content': prompt}]}, 'claude-code'):
+            return run_off_loop(asyncio.run, claude_code_complete(model, prompt))
     import litellm
     attempts = INDEX_RETRIES + 1
     messages = list(chat_history) + [{"role": "user", "content": prompt}] if chat_history else [{"role": "user", "content": prompt}]
-    backend = _llm_backend.get()
     model = _litellm_model(model)
     _quiet_litellm()
     for i in range(attempts):
         try:
-            response = litellm.completion(**_claude_none_kwargs(model, {
+            kwargs = _claude_none_kwargs(model, {
                 "model": model,
                 "messages": messages,
                 "drop_params": True,
                 # the loop is the retry policy; the merge lets a backend override win
                 "max_retries": 0,
                 **(backend or {}),
-            }))
+            })
+            with observed_model_call(kwargs, 'litellm'):
+                response = litellm.completion(**kwargs)
             _add_usage(response)
             content = response.choices[0].message.content
             if return_finish_reason:
@@ -394,26 +404,32 @@ def llm_completion(model, prompt, chat_history=None, return_finish_reason=False)
 
 
 async def llm_acompletion(model, prompt, **params):
+    from .model_input import observed_model_call
+    # 本地多模型配置先确定实际模型，避免把含斜杠的 OpenAI-compatible 标识误当 provider。
+    backend = _llm_backend.get()
+    model = (backend or {}).get("model", model)
     from .integrations.claude_agent_sdk import claude_code_complete, is_claude_code
     from .retry import INDEX_MAX_DELAY, INDEX_RETRIES, delay, should_retry
     if is_claude_code(model):
-        return await claude_code_complete(model, prompt, **params)
+        with observed_model_call({'model': model, 'messages': [{'role': 'user', 'content': prompt}], **params}, 'claude-code'):
+            return await claude_code_complete(model, prompt, **params)
     import litellm
     attempts = INDEX_RETRIES + 1
     messages = [{"role": "user", "content": prompt}]
-    backend = _llm_backend.get()
     model = _litellm_model(model)
     _quiet_litellm()
     for i in range(attempts):
         try:
-            response = await litellm.acompletion(**_claude_none_kwargs(model, {
+            kwargs = _claude_none_kwargs(model, {
                 "model": model,
                 "messages": messages,
                 "drop_params": True,
                 "max_retries": 0,
                 **(backend or {}),
                 **params,
-            }))
+            })
+            with observed_model_call(kwargs, 'litellm'):
+                response = await litellm.acompletion(**kwargs)
             _add_usage(response)
             return response.choices[0].message.content
         except Exception as e:
@@ -725,9 +741,10 @@ def add_preface_if_needed(data):
         return data
 
     if data[0]['physical_index'] is not None and data[0]['physical_index'] > 1:
+        titles = " ".join(item.get("title", "") for item in data)
         preface_node = {
             "structure": "0",
-            "title": "Preface",
+            "title": "前言" if re.search(r"[\u4e00-\u9fff]", titles) else "Preface",
             "physical_index": 1,
         }
         data.insert(0, preface_node)
@@ -931,14 +948,48 @@ def add_node_text_with_labels(node, pdf_pages):
     return
 
 
+SUMMARY_LANGUAGE_INSTRUCTION = (
+    "Write summaries, descriptions and any generated titles in the predominant "
+    "language of the source document, inferred from its original text and headings. "
+    "Do not follow the language of these instructions or previously generated summaries. "
+    "For Chinese source documents, write in Chinese, not English. "
+    "Keep JSON field names unchanged."
+)
+
+
+@contextmanager
+def _summary_connection():
+    token = _llm_backend.set(_summary_backend.get() or _llm_backend.get())
+    usage = _llm_usage.get()
+    sink = usage.get('_summary_usage') if usage is not None else None
+    usage_token = _llm_usage.set(sink) if sink is not None else None
+    try:
+        yield
+    finally:
+        _llm_backend.reset(token)
+        if usage_token is not None:
+            _llm_usage.reset(usage_token)
+
+
+async def _summary_acompletion(model, prompt, **params):
+    with _summary_connection():
+        return await llm_acompletion(model, prompt, **params)
+
+
+def _summary_completion(model, prompt):
+    with _summary_connection():
+        return llm_completion(model, prompt)
+
+
 async def generate_node_summary(node, model=None):
     prompt = f"""You are given a part of a document, your task is to generate a description of the partial document about what are main points covered in the partial document.
+    {SUMMARY_LANGUAGE_INSTRUCTION}
 
     Partial Document Text: {node['text']}
     
     Directly return the description, do not include any other text.
     """
-    response = await llm_acompletion(model, prompt)
+    response = await _summary_acompletion(model, prompt)
     return response
 
 
@@ -1309,13 +1360,13 @@ class SummaryScheduler:
     async def _complete(self, prompt):
         params = self._params
         try:
-            return await llm_acompletion(self._model, prompt, **params)
+            return await _summary_acompletion(self._model, prompt, **params)
         except Exception as e:
             if not (params and self._drop_refused_effort
                     and getattr(e, "status_code", None) == 400):
                 raise
         # the effort is to blame only if the prompt goes through without it
-        reply = await llm_acompletion(self._model, prompt)
+        reply = await _summary_acompletion(self._model, prompt)
         self._params = {}
         return reply
 
@@ -1344,6 +1395,7 @@ class SummaryScheduler:
         prompt = f"""You are given a text chunk from a document.
     Your task is to generate a concise description of everything that is covered in the text, summarizing all its points without omitting any type of content.
     Keep the description concise and to the point, avoiding unnecessary details, within {self._max_words} words.{ask_title}
+    {SUMMARY_LANGUAGE_INSTRUCTION}
 
     Given Text: {text}
 
@@ -1370,6 +1422,7 @@ class SummaryScheduler:
         prompt = f"""You are given a section of a document: the text that opens the section (possibly empty) and the titles and summaries of its subsections.
     Your task is to generate a concise description of everything that is covered in the whole section, summarizing all its points without omitting any type of content.
     Keep the description concise and to the point, avoiding unnecessary details, within {self._max_words} words.
+    {SUMMARY_LANGUAGE_INSTRUCTION}
 
     Section Title: {node.get('title', '')}
 
@@ -1504,13 +1557,14 @@ def create_clean_structure_for_description(structure, top_level_only=False):
 def generate_doc_description(structure, model=None):
     prompt = f"""Your are an expert in generating descriptions for a document.
     You are given a structure of a document. Your task is to generate a one-sentence description for the document, which makes it easy to distinguish the document from other documents.
+    {SUMMARY_LANGUAGE_INSTRUCTION}
         
     Document Structure: {structure}
     
     Directly return the description, do not include any other text.
     """
     try:
-        return llm_completion(model, prompt)
+        return _summary_completion(model, prompt)
     except Exception as e:
         # Per-prompt 400: the unbounded whole-tree prompt overran the
         # context; the indexed document survives with no description.

@@ -1,3 +1,5 @@
+model: "deepseek/deepseek-chat"
+retrieve_model: "gpt-5.4"
 # Models — index_model indexes documents (structure and summaries),
 # chat_model answers questions on the chat surfaces; set model to use one
 # for both. Unset keys use the SDK defaults shown below. Legacy keys

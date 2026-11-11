@@ -1,0 +1,15 @@
+{
+  "name": "pageindex-neural-scene",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild neural/adapter.jsx --bundle --minify --format=iife --target=chrome109 --outfile=../static/neural-scene.js --legal-comments=eof"
+  },
+  "dependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

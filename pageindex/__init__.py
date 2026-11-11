@@ -21,9 +21,13 @@ __all__ = [
     "ChatProcessOptions", "ChatStream", "MessagesStream", "ChatObject",
     "page_index", "page_index_main", "page_index_flash",
     "optimize_tree", "md_to_tree", "highlight_region",
+    "get_document", "get_document_structure", "get_page_content",
 ]
 
 _LAZY = {
+    "get_document": ".retrieve",
+    "get_document_structure": ".retrieve",
+    "get_page_content": ".retrieve",
     "highlight_region": ".imaging",
     "page_index_flash": ".flash",
     "optimize_tree": ".tree_optimize",
@@ -32,7 +36,7 @@ _LAZY = {
 _SUBMODULES = {"agent_tools", "chat_stream", "client", "cloud_api", "errors",
                "flash", "imaging", "integrations", "local_api", "local_chat",
                "local_store", "mcp_bridge", "page_index_classic",
-               "page_index_md", "retry", "tree_optimize", "types", "utils"}
+               "page_index_md", "retrieve", "retry", "tree_optimize", "types", "utils"}
 
 
 def __getattr__(name):
